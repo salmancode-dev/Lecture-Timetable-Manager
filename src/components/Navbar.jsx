@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import {
   GraduationCap,
@@ -7,13 +7,19 @@ import {
   Settings,
   LayoutDashboard,
   Plus,
+  Cloud,
+  CheckCircle2,
+  Loader2,
+  User,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import AuthModal from './AuthModal';
 import { useApp } from '../context/AppContext';
 import { motion } from 'framer-motion';
 
 export default function Navbar({ onOpenAddLecture }) {
-  const { settings } = useApp();
+  const { settings, currentUser, isCloudSyncing, isFirebaseConfigured } = useApp();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const navLinks = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -72,7 +78,45 @@ export default function Navbar({ onOpenAddLecture }) {
         </nav>
 
         {/* Right side actions */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Cloud Sync / Profile Button */}
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setIsAuthModalOpen(true)}
+            title={
+              currentUser
+                ? `Logged in as ${currentUser.email} (Cloud Synced)`
+                : isFirebaseConfigured
+                ? 'Sign in to sync across devices'
+                : 'Connect Cloud Database'
+            }
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+              currentUser
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 shadow-xs'
+                : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+            }`}
+          >
+            {isCloudSyncing ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+            ) : currentUser ? (
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+            ) : (
+              <Cloud className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+            )}
+            <span className="hidden sm:inline">
+              {currentUser
+                ? currentUser.displayName
+                  ? currentUser.displayName.split(' ')[0]
+                  : 'Synced'
+                : 'Cloud Sync'}
+            </span>
+          </motion.button>
+
           {onOpenAddLecture && (
             <motion.button
               type="button"
@@ -90,6 +134,14 @@ export default function Navbar({ onOpenAddLecture }) {
           <ThemeToggle />
         </div>
       </div>
+
+      {/* Cloud Auth / Account Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        user={currentUser}
+        isSyncing={isCloudSyncing}
+      />
     </header>
   );
 }

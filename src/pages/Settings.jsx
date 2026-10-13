@@ -11,11 +11,15 @@ import {
   GraduationCap,
   Database,
   FileJson,
+  Cloud,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { exportDataAsJSON, validateImportData } from '../utils/exportImport';
 import ConfirmDialog from '../components/ConfirmDialog';
+import AuthModal from '../components/AuthModal';
 
 export default function Settings() {
   const {
@@ -27,6 +31,9 @@ export default function Settings() {
     resetData,
     importData,
     addToast,
+    currentUser,
+    isCloudSyncing,
+    isFirebaseConfigured,
   } = useApp();
 
   const { theme, setTheme } = useTheme();
@@ -36,6 +43,7 @@ export default function Settings() {
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [importError, setImportError] = useState('');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -172,6 +180,48 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Card 2.5: Cloud Database & Cross-Device Sync */}
+      <div className="p-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+              <Cloud className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                Cloud Database (Cross-Device Sync)
+                {currentUser && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Live Synced
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {currentUser
+                  ? `Signed in as ${currentUser.email} — all changes sync in real-time across your PC, Mobile, and devices.`
+                  : 'Connect Google or Email account to keep your timetable automatically synced on both PC and Mobile.'}
+              </p>
+            </div>
+          </div>
+
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setIsAuthModalOpen(true)}
+            className={`px-4.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              currentUser
+                ? 'border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+            }`}
+          >
+            <Cloud className="w-4 h-4" />
+            <span>{currentUser ? 'Manage Cloud Account' : 'Connect Cloud Database'}</span>
+          </motion.button>
+        </div>
+      </div>
+
       {/* Card 3: Data Backup & Restore */}
       <div className="p-6 rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
         <div className="flex items-center gap-2.5">
@@ -291,6 +341,14 @@ export default function Settings() {
         confirmText="Restore Sample Data"
         isDestructive={false}
         onConfirm={resetData}
+      />
+
+      {/* Auth / Cloud Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        user={currentUser}
+        isSyncing={isCloudSyncing}
       />
     </div>
   );

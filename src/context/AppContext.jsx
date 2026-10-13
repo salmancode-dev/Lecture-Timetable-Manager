@@ -1,5 +1,8 @@
-import React, { createContext, useContext, useReducer, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useCallback, useRef } from 'react';
 import { INITIAL_SUBJECTS, getInitialLectures, INITIAL_SETTINGS } from '../utils/sampleData';
+import { subscribeToAuthChanges } from '../firebase/authService';
+import { subscribeToUserData, syncUserDataToCloud } from '../firebase/dbService';
+import { isFirebaseConfigured } from '../firebase/config';
 
 const AppContext = createContext();
 
@@ -186,6 +189,15 @@ function appReducer(state, action) {
       };
     }
 
+    case 'SET_FULL_STATE': {
+      const { subjects, lectures, settings } = action.payload;
+      return {
+        subjects: Array.isArray(subjects) ? subjects : [],
+        lectures: Array.isArray(lectures) ? lectures : [],
+        settings: settings ? { ...state.settings, ...settings } : state.settings,
+      };
+    }
+
     default:
       return state;
   }
@@ -194,8 +206,11 @@ function appReducer(state, action) {
 export function AppProvider({ children }) {
   const [state, dispatch] = useReducer(appReducer, null, getInitialState);
   const [toasts, setToasts] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const isReceivingFromCloudRef = useRef(false);
 
-  // Sync to localStorage whenever state changes
+  // Sync to localStorage whenever state changes (offline cache)
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.SUBJECTS, JSON.stringify(state.subjects));
@@ -205,6 +220,64 @@ export function AppProvider({ children }) {
       console.error('Failed to sync to localStorage:', e);
     }
   }, [state]);
+
+  // Listen to Auth State
+  useEffect(() => {
+    const unsubscribeAuth = subscribeToAuthChanges((user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribeAuth();
+  }, []);
+
+  // Listen to Firestore real-time timetable data when user is logged in
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+
+    setIsCloudSyncing(true);
+    const unsubscribeDb = subscribeToUserData(
+      currentUser.uid,
+      (cloudData) => {
+        setIsCloudSyncing(false);
+        if (cloudData) {
+          isReceivingFromCloudRef.current = true;
+          dispatch({ type: 'SET_FULL_STATE', payload: cloudData });
+          setTimeout(() => {
+            isReceivingFromCloudRef.current = false;
+          }, 400);
+        } else {
+          // Cloud doc doesn't exist yet for this account: upload local state to cloud!
+          syncUserDataToCloud(currentUser.uid, {
+            subjects: state.subjects,
+            lectures: state.lectures,
+            settings: state.settings,
+          });
+        }
+      },
+      (err) => {
+        setIsCloudSyncing(false);
+        console.error('Cloud sync error:', err);
+      }
+    );
+
+    return () => unsubscribeDb();
+  }, [currentUser?.uid]);
+
+  // Push local updates to Firestore whenever state changes (if logged in)
+  useEffect(() => {
+    if (!currentUser?.uid || isReceivingFromCloudRef.current) return;
+
+    const timer = setTimeout(() => {
+      syncUserDataToCloud(currentUser.uid, {
+        subjects: state.subjects,
+        lectures: state.lectures,
+        settings: state.settings,
+      }).catch((err) => {
+        console.error('Failed to auto-sync to cloud:', err);
+      });
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [state, currentUser?.uid]);
 
   // Toast notification helper
   const addToast = useCallback((message, type = 'success') => {
@@ -315,6 +388,9 @@ export function AppProvider({ children }) {
         clearSampleData,
         resetData,
         importData,
+        currentUser,
+        isCloudSyncing,
+        isFirebaseConfigured,
       }}
     >
       {children}
