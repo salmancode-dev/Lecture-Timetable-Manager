@@ -9,9 +9,7 @@ import {
   Mail,
   Lock,
   User,
-  ExternalLink,
-  ShieldCheck,
-  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { isFirebaseConfigured } from '../firebase/config';
 import {
@@ -20,9 +18,11 @@ import {
   registerWithEmail,
   logoutUser,
 } from '../firebase/authService';
+import { useApp } from '../context/AppContext';
 
 export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
-  const [isRegister, setIsRegister] = useState(false);
+  const { addToast } = useApp();
+  const [mode, setMode] = useState('register'); // 'register' or 'login'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -35,12 +35,15 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
     try {
       setError('');
       setLoading(true);
-      await loginWithGoogle();
+      const loggedUser = await loginWithGoogle();
+      addToast(`Welcome, ${loggedUser.displayName || 'User'}! Synced with cloud.`, 'success');
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error('Google Sign-in error:', err);
       if (err.code === 'auth/popup-closed-by-user') {
-        setError('Login cancelled.');
+        setError('Login window was closed.');
+      } else if (err.code === 'auth/unauthorized-domain') {
+        setError('Domain not authorized in Firebase. Please add this domain in Firebase Console > Authentication > Settings > Authorized domains.');
       } else {
         setError(err.message || 'Failed to sign in with Google');
       }
@@ -56,25 +59,40 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
       return;
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
     try {
       setError('');
       setLoading(true);
-      if (isRegister) {
-        await registerWithEmail(email, password, name);
+      if (mode === 'register') {
+        const newUser = await registerWithEmail(email, password, name);
+        addToast(`Account created successfully! Timetable synced to cloud.`, 'success');
+        onClose();
       } else {
-        await loginWithEmail(email, password);
+        const loggedUser = await loginWithEmail(email, password);
+        addToast(`Logged in successfully as ${loggedUser.email}!`, 'success');
+        onClose();
       }
-      onClose();
     } catch (err) {
-      console.error(err);
+      console.error('Email Auth Error:', err);
       if (err.code === 'auth/email-already-in-use') {
-        setError('This email is already in use. Please sign in instead.');
-      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        setError('Invalid email or password.');
+        setError('This email already has an account. Switch to "Sign In" tab.');
+        setMode('login');
+      } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        if (mode === 'login') {
+          setError('No account found with these credentials. If you are new, switch to "Create Account" tab.');
+        } else {
+          setError('Invalid email or password.');
+        }
       } else if (err.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setError('Email/Password login is not enabled in Firebase Console. Go to Firebase Console > Authentication > Sign-in method and enable Email/Password.');
       } else {
-        setError(err.message || 'Authentication failed');
+        setError(err.message || 'Authentication failed. Please check your credentials.');
       }
     } finally {
       setLoading(false);
@@ -85,6 +103,7 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
     try {
       setLoading(true);
       await logoutUser();
+      addToast('Signed out of cloud account.', 'info');
       onClose();
     } catch (err) {
       setError('Failed to log out');
@@ -107,7 +126,7 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -116,11 +135,11 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
           {user ? (
             <div className="text-center py-2">
               <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-lg shadow-emerald-500/25 text-2xl font-black">
-                {user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase()}
+                {user.displayName ? user.displayName[0].toUpperCase() : (user.email ? user.email[0].toUpperCase() : 'U')}
               </div>
 
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                {user.displayName || 'UniSchedule User'}
+                {user.displayName || 'Cloud Synced User'}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{user.email}</p>
 
@@ -131,7 +150,7 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
                     Cloud Sync Active
                   </h4>
                   <p className="text-[11px] text-emerald-700 dark:text-emerald-300">
-                    Your timetable, subjects & attendance are synced across PC, Mobile, and all devices.
+                    All subjects, lectures & attendance are live synced across PC, Mobile, and all devices.
                   </p>
                 </div>
               </div>
@@ -158,7 +177,7 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
                     Cloud Database Sync
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Access your timetable on PC, Mobile & every device
+                    Sync timetable across PC & Mobile in real-time
                   </p>
                 </div>
               </div>
@@ -167,15 +186,16 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
                 <div className="p-3 mb-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
                   <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold">Setup Required: </span>
-                    Firebase config keys are pending. Add your keys in <code className="bg-amber-100 dark:bg-amber-900/60 px-1 py-0.5 rounded">.env</code> or Vercel Environment Variables to activate cloud sync.
+                    <span className="font-bold">Firebase Config Notice: </span>
+                    If you are on Vercel, please trigger a <strong>Redeploy</strong> in Vercel dashboard so it reads your newly added Environment Variables.
                   </div>
                 </div>
               )}
 
               {error && (
-                <div className="p-2.5 mb-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300">
-                  {error}
+                <div className="p-3 mb-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{error}</span>
                 </div>
               )}
 
@@ -207,7 +227,7 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
                 Continue with Google
               </button>
 
-              <div className="relative my-4">
+              <div className="relative my-3">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-slate-200 dark:border-slate-800" />
                 </div>
@@ -218,9 +238,41 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
                 </div>
               </div>
 
+              {/* Mode Selector Tabs: Create Account vs Sign In */}
+              <div className="flex p-1 mb-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('register');
+                    setError('');
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    mode === 'register'
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Create Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setError('');
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    mode === 'login'
+                      ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Sign In
+                </button>
+              </div>
+
               {/* Email / Password Form */}
               <form onSubmit={handleEmailAuth} className="space-y-3">
-                {isRegister && (
+                {mode === 'register' && (
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                       Your Name
@@ -257,13 +309,14 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    Password
+                    Password (at least 6 characters)
                   </label>
                   <div className="relative">
                     <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                     <input
                       type="password"
                       required
+                      minLength={6}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
@@ -275,30 +328,20 @@ export default function AuthModal({ isOpen, onClose, user, isSyncing }) {
                 <button
                   type="submit"
                   disabled={loading || !isFirebaseConfigured}
-                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
                 >
-                  {loading
-                    ? 'Processing...'
-                    : isRegister
-                    ? 'Create Cloud Account'
-                    : 'Sign In to Cloud'}
+                  {loading ? (
+                    'Processing...'
+                  ) : mode === 'register' ? (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Create Cloud Account
+                    </>
+                  ) : (
+                    'Sign In to Cloud'
+                  )}
                 </button>
               </form>
-
-              <div className="mt-3 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsRegister(!isRegister);
-                    setError('');
-                  }}
-                  className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                >
-                  {isRegister
-                    ? 'Already have an account? Sign In'
-                    : "Don't have an account? Create one"}
-                </button>
-              </div>
             </div>
           )}
         </motion.div>
