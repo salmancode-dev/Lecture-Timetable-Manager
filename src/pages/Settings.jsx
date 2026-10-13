@@ -19,7 +19,6 @@ import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { exportDataAsJSON, validateImportData } from '../utils/exportImport';
 import ConfirmDialog from '../components/ConfirmDialog';
-import AuthModal from '../components/AuthModal';
 
 export default function Settings() {
   const {
@@ -34,6 +33,7 @@ export default function Settings() {
     currentUser,
     isCloudSyncing,
     isFirebaseConfigured,
+    openAuthModal,
   } = useApp();
 
   const { theme, setTheme } = useTheme();
@@ -43,7 +43,6 @@ export default function Settings() {
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [importError, setImportError] = useState('');
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const fileInputRef = useRef(null);
 
@@ -209,7 +208,7 @@ export default function Settings() {
             type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={() => setIsAuthModalOpen(true)}
+            onClick={openAuthModal}
             className={`px-4.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
               currentUser
                 ? 'border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100'
@@ -341,14 +340,6 @@ export default function Settings() {
         confirmText="Restore Sample Data"
         isDestructive={false}
         onConfirm={resetData}
-      />
-
-      {/* Auth / Cloud Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        user={currentUser}
-        isSyncing={isCloudSyncing}
       />
     </div>
   );

@@ -9,6 +9,7 @@ import Navbar from './components/Navbar';
 import BottomNav from './components/BottomNav';
 import Toast from './components/Toast';
 import LectureForm from './components/LectureForm';
+import AuthModal from './components/AuthModal';
 
 // Pages
 import Dashboard from './pages/Dashboard';
@@ -43,7 +44,7 @@ function AnimatedRoutes() {
 }
 
 function MainLayout() {
-  const { addLecture } = useApp();
+  const { addLecture, isAuthModalOpen, closeAuthModal, currentUser, isCloudSyncing } = useApp();
   const [isGlobalAddOpen, setIsGlobalAddOpen] = useState(false);
 
   return (
@@ -67,6 +68,14 @@ function MainLayout() {
         isOpen={isGlobalAddOpen}
         onClose={() => setIsGlobalAddOpen(false)}
         onSubmit={addLecture}
+      />
+
+      {/* Global Cloud Sync / Auth Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={closeAuthModal}
+        user={currentUser}
+        isSyncing={isCloudSyncing}
       />
     </div>
   );

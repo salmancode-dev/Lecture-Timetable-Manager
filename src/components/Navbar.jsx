@@ -13,13 +13,11 @@ import {
   User,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
-import AuthModal from './AuthModal';
 import { useApp } from '../context/AppContext';
 import { motion } from 'framer-motion';
 
 export default function Navbar({ onOpenAddLecture }) {
-  const { settings, currentUser, isCloudSyncing, isFirebaseConfigured } = useApp();
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const { settings, currentUser, isCloudSyncing, isFirebaseConfigured, openAuthModal } = useApp();
 
   const navLinks = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -84,7 +82,7 @@ export default function Navbar({ onOpenAddLecture }) {
             type="button"
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
-            onClick={() => setIsAuthModalOpen(true)}
+            onClick={openAuthModal}
             title={
               currentUser
                 ? `Logged in as ${currentUser.email} (Cloud Synced)`
@@ -134,14 +132,6 @@ export default function Navbar({ onOpenAddLecture }) {
           <ThemeToggle />
         </div>
       </div>
-
-      {/* Cloud Auth / Account Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        user={currentUser}
-        isSyncing={isCloudSyncing}
-      />
     </header>
   );
 }

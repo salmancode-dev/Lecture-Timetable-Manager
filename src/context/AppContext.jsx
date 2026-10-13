@@ -208,6 +208,7 @@ export function AppProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const isReceivingFromCloudRef = useRef(false);
 
   // Sync to localStorage whenever state changes (offline cache)
@@ -391,6 +392,9 @@ export function AppProvider({ children }) {
         currentUser,
         isCloudSyncing,
         isFirebaseConfigured,
+        isAuthModalOpen,
+        openAuthModal: () => setIsAuthModalOpen(true),
+        closeAuthModal: () => setIsAuthModalOpen(false),
       }}
     >
       {children}
